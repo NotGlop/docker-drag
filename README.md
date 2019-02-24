@@ -1,5 +1,5 @@
-# DockerWeb
-DockerWeb contains Python scripts for interacting with Docker Hub without needing the Docker client itself.
+# docker-drag
+This repository contains Python scripts for interacting with Docker Hub without needing the Docker client itself.
 
 It interacts exclusively with the Docker Hub HTTPS API.
 
