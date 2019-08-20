@@ -1,7 +1,7 @@
 import os
 import sys
 import gzip
-from io import StringIO, BytesIO
+from io import BytesIO
 import json
 import hashlib
 import shutil
@@ -75,8 +75,7 @@ for layer in layers:
 	file.close()
 
 	# Creating layer.tar file
-	print(ublob[7:19] + ': Downloading...',
-	sys.stdout.flush())
+	sys.stdout.write(ublob[7:19] + ': Downloading...')
 	bresp = requests.get('https://registry-1.docker.io/v2/{}/blobs/{}'.format(repository, ublob), headers=auth_head, verify=False)
 	if (bresp.status_code != 200):
 		print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
