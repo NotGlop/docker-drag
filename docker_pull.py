@@ -1,7 +1,7 @@
 import os
 import sys
 import gzip
-from StringIO import StringIO
+from io import BytesIO
 import json
 import hashlib
 import shutil
@@ -11,7 +11,7 @@ import urllib3
 urllib3.disable_warnings()
 
 if len(sys.argv) != 2 :
-	print 'Usage:\n\tdocker_pull.py [repository/]image[:tag]\n'
+	print('Usage:\n\tdocker_pull.py [repository/]image[:tag]\n')
 	exit(1)
 
 # Look for the Docker image to download
@@ -35,18 +35,18 @@ auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.
 # Get image layer digests
 resp = requests.get('https://registry-1.docker.io/v2/{}/manifests/{}'.format(repository, tag), headers=auth_head, verify=False)
 if (resp.status_code != 200):
-	print 'Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code)
+	print('Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
 	exit(1)
 layers = resp.json()['layers']
 
 # Create tmp folder that will hold the image
 imgdir = 'tmp_{}_{}'.format(img, tag)
 os.mkdir(imgdir)
-print 'Creating image structure in: ' + imgdir
+print('Creating image structure in: ' + imgdir)
 
 config = resp.json()['config']['digest']
 confresp = requests.get('https://registry-1.docker.io/v2/{}/blobs/{}'.format(repository, config), headers=auth_head, verify=False)
-file = open('{}/{}.json'.format(imgdir, config[7:]), 'w')
+file = open('{}/{}.json'.format(imgdir, config[7:]), 'wb')
 file.write(confresp.content)
 file.close()
 
@@ -64,8 +64,8 @@ empty_json = '{"created":"1970-01-01T00:00:00Z","container_config":{"Hostname":"
 parentid=''
 for layer in layers:
 	ublob = layer['digest']
-	 # FIXME: Creating fake layer ID. Don't know how Docker generates it
-	fake_layerid = hashlib.sha256(parentid+'\n'+ublob+'\n').hexdigest()
+	# FIXME: Creating fake layer ID. Don't know how Docker generates it
+	fake_layerid = hashlib.sha256((parentid+'\n'+ublob+'\n').encode('utf-8')).hexdigest()
 	layerdir = imgdir + '/' + fake_layerid
 	os.mkdir(layerdir)
 
@@ -75,17 +75,17 @@ for layer in layers:
 	file.close()
 
 	# Creating layer.tar file
-	print ublob[7:19] + ': Downloading...',
+	sys.stdout.write(ublob[7:19] + ': Downloading...')
 	sys.stdout.flush()
 	bresp = requests.get('https://registry-1.docker.io/v2/{}/blobs/{}'.format(repository, ublob), headers=auth_head, verify=False)
 	if (bresp.status_code != 200):
-		print '\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length'])
-		print bresp.content
+		print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
+		print(bresp.content)
 		exit(1)
-	print "\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length'])
+	print("\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length']))
 	content[0]['Layers'].append(fake_layerid + '/layer.tar')
 	file = open(layerdir + '/layer.tar', "wb")
-	mybuff = StringIO(bresp.content)
+	mybuff = BytesIO(bresp.content)
 	unzLayer = gzip.GzipFile(fileobj=mybuff)
 	file.write(unzLayer.read())
 	unzLayer.close()
@@ -104,7 +104,7 @@ for layer in layers:
 	json_obj['id'] = fake_layerid
 	if parentid:
 		json_obj['parent'] = parentid
-	parentid = json_obj['id']	
+	parentid = json_obj['id']
 	file.write(json.dumps(json_obj))
 	file.close()
 
