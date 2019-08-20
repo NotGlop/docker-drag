@@ -76,6 +76,7 @@ for layer in layers:
 
 	# Creating layer.tar file
 	sys.stdout.write(ublob[7:19] + ': Downloading...')
+	sys.stdout.flush()
 	bresp = requests.get('https://registry-1.docker.io/v2/{}/blobs/{}'.format(repository, ublob), headers=auth_head, verify=False)
 	if (bresp.status_code != 200):
 		print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
