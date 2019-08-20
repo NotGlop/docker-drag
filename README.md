@@ -12,6 +12,9 @@ It interacts exclusively with the Docker Hub HTTPS API.
 
 `python docker_pull.py kalilinux/kali-linux-docker`
 
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/26483750/63388733-b419f480-c3a9-11e9-8617-7c5b47b76dbd.gif">
+</p>
 
 ## Limitations
 - Takes the default manifest (independant of the architecture)
