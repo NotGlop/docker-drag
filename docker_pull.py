@@ -11,31 +11,47 @@ import urllib3
 urllib3.disable_warnings()
 
 if len(sys.argv) != 2 :
-	print('Usage:\n\tdocker_pull.py [repository/]image[:tag]\n')
+	print('Usage:\n\tdocker_pull.py [registry/][repository/]image[:tag]\n')
 	exit(1)
 
 # Look for the Docker image to download
 repo = 'library'
 tag = 'latest'
 try:
-    repo,imgtag = sys.argv[1].split('/')
+    registry,repo,imgtag = sys.argv[1].split('/')
 except ValueError:
-    imgtag = sys.argv[1]
+    registry = 'registry-1.docker.io'
+    try:
+	    repo,imgtag = sys.argv[1].split('/')
+    except ValueError:
+        imgtag = sys.argv[1]
 try:
     img,tag = imgtag.split(':')
 except ValueError:
     img = imgtag
 repository = '{}/{}'.format(repo, img)
 
-# Get Docker token and fetch manifest v2
-resp = requests.get('https://auth.docker.io/token?service=registry.docker.io&scope=repository:' + repository + ':pull', verify=False)
+
+# Get Docker authentication endpoint when it is required
+auth_url='https://auth.docker.io/token'
+reg_service='registry.docker.io'
+resp = requests.get('https://{}/v2/'.format(registry), verify=False)
+if resp.status_code == 401:
+    auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
+    reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
+
+
+# Get Docker token and fetch manifest v2 (this part is useless for unauthenticated registries like Microsoft)
+resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, reg_service, repository), verify=False)
 access_token = resp.json()['access_token']
 auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
 
+
 # Get image layer digests
-resp = requests.get('https://registry-1.docker.io/v2/{}/manifests/{}'.format(repository, tag), headers=auth_head, verify=False)
+resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 if (resp.status_code != 200):
 	print('Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
+	print(resp.content)
 	exit(1)
 layers = resp.json()['layers']
 
@@ -45,7 +61,7 @@ os.mkdir(imgdir)
 print('Creating image structure in: ' + imgdir)
 
 config = resp.json()['config']['digest']
-confresp = requests.get('https://registry-1.docker.io/v2/{}/blobs/{}'.format(repository, config), headers=auth_head, verify=False)
+confresp = requests.get('https://{}/v2/{}/blobs/{}'.format(registry, repository, config), headers=auth_head, verify=False)
 file = open('{}/{}.json'.format(imgdir, config[7:]), 'wb')
 file.write(confresp.content)
 file.close()
@@ -77,11 +93,13 @@ for layer in layers:
 	# Creating layer.tar file
 	sys.stdout.write(ublob[7:19] + ': Downloading...')
 	sys.stdout.flush()
-	bresp = requests.get('https://registry-1.docker.io/v2/{}/blobs/{}'.format(repository, ublob), headers=auth_head, verify=False)
+	bresp = requests.get('https://{}/v2/{}/blobs/{}'.format(registry, repository, ublob), headers=auth_head, verify=False)
 	if (bresp.status_code != 200):
-		print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
-		print(bresp.content)
-		exit(1)
+		bresp = requests.get(layer['urls'][0], headers=auth_head, verify=False)
+		if (bresp.status_code != 200):
+			print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
+			print(bresp.content)
+			exit(1)
 	print("\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length']))
 	content[0]['Layers'].append(fake_layerid + '/layer.tar')
 	file = open(layerdir + '/layer.tar', "wb")
