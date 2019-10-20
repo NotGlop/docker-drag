@@ -1,7 +1,7 @@
 # docker-drag
 This repository contains Python scripts for interacting with Docker Hub without needing the Docker client itself.
 
-It interacts with API's following the Docker Hub API v2 spec.
+It interacts with APIs following the Docker Hub API v2 spec.
 See [https://docs .docker.com/registry/spec/api/]()
 
 ## Pull a Docker image in HTTPS
