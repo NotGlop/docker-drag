@@ -18,6 +18,9 @@ tmp_*/
 *.pfx
 *.p12
 
+# Tox files
+.tox/
+
 # PyCharm IDE files
 .idea/
 

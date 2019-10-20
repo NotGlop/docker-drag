@@ -55,7 +55,7 @@ name = '{repo}/{img}'.format(repo=repo, img=img)
 # Create tmp folder that will hold the image
 temp_dir = 'tmp_{img}_{tag}'.format(img=img, tag=tag)
 try:
-    shutil.rmtree(temp_dir + 'abc')  # try to delete temp dir if it exists
+    shutil.rmtree(temp_dir)  # try to delete temp dir if it exists
 except FileNotFoundError:
     pass
 os.mkdir(temp_dir)
