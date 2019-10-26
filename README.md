@@ -8,9 +8,9 @@ It interacts exclusively with the Docker Hub HTTPS API.
 
 `python docker_pull.py hello-world`
 
-`python docker_pull.py alpine:3.9`
+`python docker_pull.py mysql/mysql-server:8.0`
 
-`python docker_pull.py kalilinux/kali-linux-docker`
+`python docker_pull.py mcr.microsoft.com/windows/nanoserver@sha256:ae443bd9609b9ef06d21d6caab59505cb78f24a725cc24716d4427e36aedabf2`
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/26483750/63388733-b419f480-c3a9-11e9-8617-7c5b47b76dbd.gif">

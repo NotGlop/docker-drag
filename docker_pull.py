@@ -11,26 +11,31 @@ import urllib3
 urllib3.disable_warnings()
 
 if len(sys.argv) != 2 :
-	print('Usage:\n\tdocker_pull.py [registry/][repository/]image[:tag]\n')
+	print('Usage:\n\tdocker_pull.py [repository/]image[:tag|@digest]\n')
 	exit(1)
 
 # Look for the Docker image to download
 repo = 'library'
 tag = 'latest'
+imgparts = sys.argv[1].split('/')
 try:
-    registry,repo,imgtag = sys.argv[1].split('/')
+    img,tag = imgparts[-1].split('@')
 except ValueError:
-    registry = 'registry-1.docker.io'
-    try:
-	    repo,imgtag = sys.argv[1].split('/')
-    except ValueError:
-        imgtag = sys.argv[1]
-try:
-    img,tag = imgtag.split(':')
-except ValueError:
-    img = imgtag
+	try:
+	    img,tag = imgparts[-1].split(':')
+	except ValueError:
+		img = imgparts[-1]
+# Docker client doesn't seem to consider the first element as a potential registry unless there is a '.' or ':'
+if len(imgparts) > 1 and ('.' in imgparts[0] or ':' in imgparts[0]):
+	registry = imgparts[0]
+	repo = '/'.join(imgparts[1:-1])
+else:
+	registry = 'registry-1.docker.io'
+	if len(imgparts[:-1]) != 0:
+		repo = '/'.join(imgparts[:-1])
+	else:
+		repo = 'library'
 repository = '{}/{}'.format(repo, img)
-
 
 # Get Docker authentication endpoint when it is required
 auth_url='https://auth.docker.io/token'
@@ -50,13 +55,22 @@ auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.
 # Get image layer digests
 resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 if (resp.status_code != 200):
-	print('Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
-	print(resp.content)
+	print('[-] Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
+	print resp.content
+	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.list.v2+json'}
+	resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
+	if (resp.status_code == 200):
+		print '[+] Manifests found for this tag (use the @digest format to pull the corresponding image):'
+		manifests = resp.json()['manifests']
+		for manifest in manifests:
+			for key, value in manifest["platform"].iteritems():
+				print '{}: {},'.format(key, value),
+			print 'digest: {}'.format(manifest["digest"])
 	exit(1)
 layers = resp.json()['layers']
 
 # Create tmp folder that will hold the image
-imgdir = 'tmp_{}_{}'.format(img, tag)
+imgdir = 'tmp_{}_{}'.format(img, tag.replace(':', '@'))
 os.mkdir(imgdir)
 print('Creating image structure in: ' + imgdir)
 
@@ -130,13 +144,16 @@ file = open(imgdir + '/manifest.json', 'w')
 file.write(json.dumps(content))
 file.close()
 
-content = { repository : { tag : fake_layerid } }
+if len(imgparts[:-1]) != 0:
+	content = { '/'.join(imgparts[:-1]) + '/' + img : { tag : fake_layerid } }
+else:
+	content = { img : { tag : fake_layerid } }
 file = open(imgdir + '/repositories', 'w')
 file.write(json.dumps(content))
 file.close()
 
 # Create image tar and clean tmp folder
-docker_tar = repo + '_' + img + '.tar'
+docker_tar = repo.replace('/', '_') + '_' + img + '.tar'
 tar = tarfile.open(docker_tar, "w")
 tar.add(imgdir, arcname=os.path.sep)
 tar.close()
