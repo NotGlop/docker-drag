@@ -11,7 +11,7 @@ import urllib3
 urllib3.disable_warnings()
 
 if len(sys.argv) != 2 :
-	print('Usage:\n\tdocker_pull.py [repository/]image[:tag|@digest]\n')
+	print('Usage:\n\tdocker_pull.py [registry/][repository/]image[:tag|@digest]\n')
 	exit(1)
 
 # Look for the Docker image to download
@@ -42,13 +42,16 @@ auth_url='https://auth.docker.io/token'
 reg_service='registry.docker.io'
 resp = requests.get('https://{}/v2/'.format(registry), verify=False)
 if resp.status_code == 401:
-    auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
-    reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
+	auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
+	try:
+		reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
+	except IndexError:
+		reg_service = ""
 
 
 # Get Docker token and fetch manifest v2 (this part is useless for unauthenticated registries like Microsoft)
 resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, reg_service, repository), verify=False)
-access_token = resp.json()['access_token']
+access_token = resp.json()['token']
 auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
 
 
