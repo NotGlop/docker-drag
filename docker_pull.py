@@ -59,16 +59,16 @@ auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.
 resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 if (resp.status_code != 200):
 	print('[-] Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
-	print resp.content
+	print(resp.content)
 	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.list.v2+json'}
 	resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 	if (resp.status_code == 200):
-		print '[+] Manifests found for this tag (use the @digest format to pull the corresponding image):'
+		print('[+] Manifests found for this tag (use the @digest format to pull the corresponding image):')
 		manifests = resp.json()['manifests']
 		for manifest in manifests:
-			for key, value in manifest["platform"].iteritems():
-				print '{}: {},'.format(key, value),
-			print 'digest: {}'.format(manifest["digest"])
+			for key, value in manifest["platform"].items():
+				sys.stdout.write('{}: {}, '.format(key, value))
+			print('digest: {}'.format(manifest["digest"]))
 	exit(1)
 layers = resp.json()['layers']
 
@@ -85,9 +85,13 @@ file.close()
 
 content = [{
 	'Config': config[7:] + '.json',
-	'RepoTags': [ repository + ':' + tag ],
+	'RepoTags': [ ],
 	'Layers': [ ]
 	}]
+if len(imgparts[:-1]) != 0:
+	content[0]['RepoTags'].append('/'.join(imgparts[:-1]) + '/' + img + ':' + tag)
+else:
+	content[0]['RepoTags'].append(img + ':' + tag)
 
 empty_json = '{"created":"1970-01-01T00:00:00Z","container_config":{"Hostname":"","Domainname":"","User":"","AttachStdin":false, \
 	"AttachStdout":false,"AttachStderr":false,"Tty":false,"OpenStdin":false, "StdinOnce":false,"Env":null,"Cmd":null,"Image":"", \
@@ -149,7 +153,7 @@ file.close()
 
 if len(imgparts[:-1]) != 0:
 	content = { '/'.join(imgparts[:-1]) + '/' + img : { tag : fake_layerid } }
-else:
+else: # when pulling only an img (without repo and registry)
 	content = { img : { tag : fake_layerid } }
 file = open(imgdir + '/repositories', 'w')
 file.write(json.dumps(content))
