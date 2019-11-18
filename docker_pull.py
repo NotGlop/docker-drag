@@ -58,18 +58,18 @@ def command_parser(command):
     return registry, repository, image, tag
 
 
-def remove_dir(d):
+def create_dir(d):
     """
-    Remove specified directory. No error is raised if directory does not exist.
+    Create specified directory. If directory already exists, it will be deleted and replaced.
 
-    :param d: directory to delete
+    :param d: directory to create
     :return: None
     """
     try:
-        shutil.rmtree(temp_dir)  # try to delete temp dir if it exists
+        shutil.rmtree(d)  # try to delete temp dir if it exists
     except FileNotFoundError:
         pass
-    os.mkdir(temp_dir)
+    os.mkdir(d)
 
 
 if __name__ == '__main__':
@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     # Create tmp folder that will hold the image
     temp_dir = 'tmp_{img}_{tag}'.format(img=img, tag=tag)
-    remove_dir(temp_dir)
+    create_dir(temp_dir)
     print('Creating image structure in: ' + temp_dir)
 
     # Get Docker token
