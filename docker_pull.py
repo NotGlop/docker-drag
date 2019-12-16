@@ -54,6 +54,18 @@ resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, re
 access_token = resp.json()['token']
 auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
 
+# Docker style progress bar
+def progress_bar(ublob, nb_traits):
+	sys.stdout.write('\r' + ublob[7:19] + ': Downloading [')
+	for i in range(0, nb_traits):
+		if i == nb_traits - 1:
+			sys.stdout.write('>')
+		else:
+			sys.stdout.write('=')
+	for i in range(0, 49 - nb_traits):
+		sys.stdout.write(' ')
+	sys.stdout.write(']')
+	sys.stdout.flush()
 
 # Get image layer digests
 resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
@@ -114,21 +126,36 @@ for layer in layers:
 	# Creating layer.tar file
 	sys.stdout.write(ublob[7:19] + ': Downloading...')
 	sys.stdout.flush()
-	bresp = requests.get('https://{}/v2/{}/blobs/{}'.format(registry, repository, ublob), headers=auth_head, verify=False)
-	if (bresp.status_code != 200):
-		bresp = requests.get(layer['urls'][0], headers=auth_head, verify=False)
+	bresp = requests.get('https://{}/v2/{}/blobs/{}'.format(registry, repository, ublob), headers=auth_head, stream=True, verify=False)
+	if (bresp.status_code != 200): # FIXME: if 401 (token expired), this will throw an error on 'urls' keyword
+		bresp = requests.get(layer['urls'][0], headers=auth_head, stream=True, verify=False) # will fail if token expired
 		if (bresp.status_code != 200):
 			print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
 			print(bresp.content)
 			exit(1)
+	# Stream download and follow the progress
+	bresp.raise_for_status()
+	unit = int(bresp.headers['Content-Length']) / 50
+	acc = 0
+	nb_traits = 0
+	progress_bar(ublob, nb_traits)
+	with open(layerdir + '/layer_gzip.tar', "wb") as file:
+		for chunk in bresp.iter_content(chunk_size=8192): 
+			if chunk:
+				file.write(chunk)
+				acc = acc + 8192
+				if acc > unit:
+					nb_traits = nb_traits + 1
+					progress_bar(ublob, nb_traits)
+					acc = 0
+	sys.stdout.write("\r{}: Extracting ...{}".format(ublob[7:19], " "*50)) # Ugly but works everywhere
+	with open(layerdir + '/layer.tar', "wb") as file: # Decompress gzip response
+		unzLayer = gzip.open(layerdir + '/layer_gzip.tar','rb')
+		file.write(unzLayer.read())
+		unzLayer.close()
+	os.remove(layerdir + '/layer_gzip.tar')
 	print("\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length']))
 	content[0]['Layers'].append(fake_layerid + '/layer.tar')
-	file = open(layerdir + '/layer.tar', "wb")
-	mybuff = BytesIO(bresp.content)
-	unzLayer = gzip.GzipFile(fileobj=mybuff)
-	file.write(unzLayer.read())
-	unzLayer.close()
-	file.close()
 	
 	# Creating json file
 	file = open(layerdir + '/json', 'w')
