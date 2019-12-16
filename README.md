@@ -1,8 +1,7 @@
 # docker-drag
 This repository contains Python scripts for interacting with Docker Hub without needing the Docker client itself.
 
-It interacts exclusively with the Docker Registry HTTPS API.
-
+It interacts with the Docker registry [HTTPS API v2](https://docs.docker.com/registry/spec/api/).
 
 ## Pull a Docker image in HTTPS
 
@@ -15,12 +14,13 @@ It interacts exclusively with the Docker Registry HTTPS API.
 `python docker_pull.py consul@sha256:6ba4bfe1449ad8ac5a76cb29b6c3ff54489477a23786afb61ae30fb3b1ac0ae9`
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/26483750/63388733-b419f480-c3a9-11e9-8617-7c5b47b76dbd.gif">
+  <img src="https://user-images.githubusercontent.com/26483750/70938831-4758f300-2047-11ea-9ca0-6761374fa705.gif">
 </p>
 
 ## Limitations
-- Only support v2 manifests: some registries like quay.io which only use v1 manifests may not work
+- Only support v2 manifests: some registries, like quay.io which only uses v1 manifests, may not work.
 - Some big images may fail to unzip during the extract process
+- Some Microsoft images fail to download, because of a typo in their build: they use `rootfS` instead of `rootfs`
 
 ## Well known bugs
 2 open bugs which shouldn't affect the efficiency of the script nor the pulled image:
