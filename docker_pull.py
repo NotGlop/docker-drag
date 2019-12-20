@@ -186,7 +186,7 @@ for layer in layers:
         sys.stdout.write("\r{}: Extracting ...{}".format(ublob[7:19], " "*50)) # Ugly but works everywhere
         with open(layerdir + '/layer.tar', "wb") as file: # Decompress gzip response
             unzLayer = gzip.open(layerdir + '/layer_gzip.tar','rb')
-            file.write(unzLayer.read())
+            shutil.copyfileobj(unzLayer,file)
             unzLayer.close()
         os.remove(layerdir + '/layer_gzip.tar')
         print("\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length']))
