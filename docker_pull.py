@@ -37,22 +37,26 @@ else:
 		repo = 'library'
 repository = '{}/{}'.format(repo, img)
 
-# Get Docker authentication endpoint when it is required
-auth_url='https://auth.docker.io/token'
-reg_service='registry.docker.io'
-resp = requests.get('https://{}/v2/'.format(registry), verify=False)
-if resp.status_code == 401:
-	auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
-	try:
-		reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
-	except IndexError:
-		reg_service = ""
+def gey_auth_head(registry):
+	# Get Docker authentication endpoint when it is required
+	auth_url='https://auth.docker.io/token'
+	reg_service='registry.docker.io'
+	resp = requests.get('https://{}/v2/'.format(registry), verify=False)
+	if resp.status_code == 401:
+		auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
+		try:
+			reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
+		except IndexError:
+			reg_service = ""
 
+	# Get Docker token and fetch manifest v2 (this part is useless for unauthenticated registries like Microsoft)
+	resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, reg_service, repository), verify=False)
+	access_token = resp.json()['token']
+	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
 
-# Get Docker token and fetch manifest v2 (this part is useless for unauthenticated registries like Microsoft)
-resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, reg_service, repository), verify=False)
-access_token = resp.json()['token']
-auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
+	return auth_head
+
+auth_head = gey_auth_head(registry)
 
 # Docker style progress bar
 def progress_bar(ublob, nb_traits):
@@ -112,6 +116,7 @@ empty_json = '{"created":"1970-01-01T00:00:00Z","container_config":{"Hostname":"
 # Build layer folders
 parentid=''
 for layer in layers:
+	auth_head = gey_auth_head(registry)
 	ublob = layer['digest']
 	# FIXME: Creating fake layer ID. Don't know how Docker generates it
 	fake_layerid = hashlib.sha256((parentid+'\n'+ublob+'\n').encode('utf-8')).hexdigest()
@@ -150,9 +155,10 @@ for layer in layers:
 					acc = 0
 	sys.stdout.write("\r{}: Extracting ...{}".format(ublob[7:19], " "*50)) # Ugly but works everywhere
 	with open(layerdir + '/layer.tar', "wb") as file: # Decompress gzip response
-		unzLayer = gzip.open(layerdir + '/layer_gzip.tar','rb')
-		file.write(unzLayer.read())
-		unzLayer.close()
+		with gzip.open(layerdir + '/layer_gzip.tar','rb') as unzLayer:
+			shutil.copyfileobj(unzLayer, file)
+			#file.write(unzLayer.read())
+		
 	os.remove(layerdir + '/layer_gzip.tar')
 	print("\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length']))
 	content[0]['Layers'].append(fake_layerid + '/layer.tar')
