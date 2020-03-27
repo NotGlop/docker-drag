@@ -49,10 +49,10 @@ if resp.status_code == 401:
 		reg_service = ""
 
 # Get Docker token (this function is useless for unauthenticated registries like Microsoft)
-def get_auth_head(registry):
+def get_auth_head(type):
 	resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, reg_service, repository), verify=False)
 	access_token = resp.json()['token']
-	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
+	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept': type}
 	return auth_head
 
 # Docker style progress bar
@@ -69,12 +69,12 @@ def progress_bar(ublob, nb_traits):
 	sys.stdout.flush()
 
 # Fetch manifest v2 and get image layer digests
-auth_head = get_auth_head(registry)
+auth_head = get_auth_head('application/vnd.docker.distribution.manifest.v2+json')
 resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 if (resp.status_code != 200):
 	print('[-] Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
 	print(resp.content)
-	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.list.v2+json'}
+	auth_head = get_auth_head('application/vnd.docker.distribution.manifest.list.v2+json')
 	resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 	if (resp.status_code == 200):
 		print('[+] Manifests found for this tag (use the @digest format to pull the corresponding image):')
@@ -128,7 +128,7 @@ for layer in layers:
 	# Creating layer.tar file
 	sys.stdout.write(ublob[7:19] + ': Downloading...')
 	sys.stdout.flush()
-	auth_head = get_auth_head(registry) # refreshing token to avoid its expiration
+	auth_head = get_auth_head('application/vnd.docker.distribution.manifest.v2+json') # refreshing token to avoid its expiration
 	bresp = requests.get('https://{}/v2/{}/blobs/{}'.format(registry, repository, ublob), headers=auth_head, stream=True, verify=False)
 	if (bresp.status_code != 200): # When the layer is located at a custom URL
 		bresp = requests.get(layer['urls'][0], headers=auth_head, stream=True, verify=False)
@@ -151,7 +151,7 @@ for layer in layers:
 					nb_traits = nb_traits + 1
 					progress_bar(ublob, nb_traits)
 					acc = 0
-	sys.stdout.write("\r{}: Extracting ...{}".format(ublob[7:19], " "*50)) # Ugly but works everywhere
+	sys.stdout.write("\r{}: Extracting...{}".format(ublob[7:19], " "*50)) # Ugly but works everywhere
 	sys.stdout.flush()
 	with open(layerdir + '/layer.tar', "wb") as file: # Decompress gzip response
 		unzLayer = gzip.open(layerdir + '/layer_gzip.tar','rb')
@@ -195,7 +195,7 @@ file.close()
 
 # Create image tar and clean tmp folder
 docker_tar = repo.replace('/', '_') + '_' + img + '.tar'
-sys.stdout.write("Creating archive ...")
+sys.stdout.write("Creating archive...")
 sys.stdout.flush()
 tar = tarfile.open(docker_tar, "w")
 tar.add(imgdir, arcname=os.path.sep)
