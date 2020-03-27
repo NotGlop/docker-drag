@@ -37,26 +37,23 @@ else:
 		repo = 'library'
 repository = '{}/{}'.format(repo, img)
 
-def gey_auth_head(registry):
-	# Get Docker authentication endpoint when it is required
-	auth_url='https://auth.docker.io/token'
-	reg_service='registry.docker.io'
-	resp = requests.get('https://{}/v2/'.format(registry), verify=False)
-	if resp.status_code == 401:
-		auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
-		try:
-			reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
-		except IndexError:
-			reg_service = ""
+# Get Docker authentication endpoint when it is required
+auth_url='https://auth.docker.io/token'
+reg_service='registry.docker.io'
+resp = requests.get('https://{}/v2/'.format(registry), verify=False)
+if resp.status_code == 401:
+	auth_url = resp.headers['WWW-Authenticate'].split('"')[1]
+	try:
+		reg_service = resp.headers['WWW-Authenticate'].split('"')[3]
+	except IndexError:
+		reg_service = ""
 
-	# Get Docker token and fetch manifest v2 (this part is useless for unauthenticated registries like Microsoft)
+# Get Docker token (this function is useless for unauthenticated registries like Microsoft)
+def get_auth_head(registry):
 	resp = requests.get('{}?service={}&scope=repository:{}:pull'.format(auth_url, reg_service, repository), verify=False)
 	access_token = resp.json()['token']
 	auth_head = {'Authorization':'Bearer '+ access_token, 'Accept':'application/vnd.docker.distribution.manifest.v2+json'}
-
 	return auth_head
-
-auth_head = gey_auth_head(registry)
 
 # Docker style progress bar
 def progress_bar(ublob, nb_traits):
@@ -71,7 +68,8 @@ def progress_bar(ublob, nb_traits):
 	sys.stdout.write(']')
 	sys.stdout.flush()
 
-# Get image layer digests
+# Fetch manifest v2 and get image layer digests
+auth_head = get_auth_head(registry)
 resp = requests.get('https://{}/v2/{}/manifests/{}'.format(registry, repository, tag), headers=auth_head, verify=False)
 if (resp.status_code != 200):
 	print('[-] Cannot fetch manifest for {} [HTTP {}]'.format(repository, resp.status_code))
@@ -116,7 +114,6 @@ empty_json = '{"created":"1970-01-01T00:00:00Z","container_config":{"Hostname":"
 # Build layer folders
 parentid=''
 for layer in layers:
-	auth_head = gey_auth_head(registry)
 	ublob = layer['digest']
 	# FIXME: Creating fake layer ID. Don't know how Docker generates it
 	fake_layerid = hashlib.sha256((parentid+'\n'+ublob+'\n').encode('utf-8')).hexdigest()
@@ -131,9 +128,10 @@ for layer in layers:
 	# Creating layer.tar file
 	sys.stdout.write(ublob[7:19] + ': Downloading...')
 	sys.stdout.flush()
+	auth_head = get_auth_head(registry) # refreshing token to avoid its expiration
 	bresp = requests.get('https://{}/v2/{}/blobs/{}'.format(registry, repository, ublob), headers=auth_head, stream=True, verify=False)
-	if (bresp.status_code != 200): # FIXME: if 401 (token expired), this will throw an error on 'urls' keyword
-		bresp = requests.get(layer['urls'][0], headers=auth_head, stream=True, verify=False) # will fail if token expired
+	if (bresp.status_code != 200): # When the layer is located at a custom URL
+		bresp = requests.get(layer['urls'][0], headers=auth_head, stream=True, verify=False)
 		if (bresp.status_code != 200):
 			print('\rERROR: Cannot download layer {} [HTTP {}]'.format(ublob[7:19], bresp.status_code, bresp.headers['Content-Length']))
 			print(bresp.content)
@@ -154,11 +152,11 @@ for layer in layers:
 					progress_bar(ublob, nb_traits)
 					acc = 0
 	sys.stdout.write("\r{}: Extracting ...{}".format(ublob[7:19], " "*50)) # Ugly but works everywhere
+	sys.stdout.flush()
 	with open(layerdir + '/layer.tar', "wb") as file: # Decompress gzip response
-		with gzip.open(layerdir + '/layer_gzip.tar','rb') as unzLayer:
-			shutil.copyfileobj(unzLayer, file)
-			#file.write(unzLayer.read())
-		
+		unzLayer = gzip.open(layerdir + '/layer_gzip.tar','rb')
+		shutil.copyfileobj(unzLayer, file)
+		unzLayer.close()
 	os.remove(layerdir + '/layer_gzip.tar')
 	print("\r{}: Pull complete [{}]".format(ublob[7:19], bresp.headers['Content-Length']))
 	content[0]['Layers'].append(fake_layerid + '/layer.tar')
@@ -170,7 +168,10 @@ for layer in layers:
 		# FIXME: json.loads() automatically converts to unicode, thus decoding values whereas Docker doesn't
 		json_obj = json.loads(confresp.content)
 		del json_obj['history']
-		del json_obj['rootfs']
+		try:
+			del json_obj['rootfs']
+		except: # Because Microsoft loves case insensitiveness
+			del json_obj['rootfS']
 	else: # other layers json are empty
 		json_obj = json.loads(empty_json)
 	json_obj['id'] = fake_layerid
@@ -194,8 +195,10 @@ file.close()
 
 # Create image tar and clean tmp folder
 docker_tar = repo.replace('/', '_') + '_' + img + '.tar'
+sys.stdout.write("Creating archive ...")
+sys.stdout.flush()
 tar = tarfile.open(docker_tar, "w")
 tar.add(imgdir, arcname=os.path.sep)
 tar.close()
 shutil.rmtree(imgdir)
-print('Docker image pulled: ' + docker_tar)
+print('\rDocker image pulled: ' + docker_tar)
