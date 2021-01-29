@@ -12,7 +12,10 @@ import re
 urllib3.disable_warnings()
 
 # Graphical needs for drawing full line
-console_rows, console_columns = os.popen('stty size', 'r').read().split()
+try:
+	console_rows, console_columns = os.popen('stty size', 'r').read().split()
+except:
+	console_rows, console_columns = 20 , 20
 
 ############# DEFAULTs VAR
 
@@ -23,6 +26,7 @@ DOCKER_DEFAULT_tag = 'latest'
 
 username = ""
 password = ""
+output_path = "."
 
 json_manifest_type='application/vnd.docker.distribution.manifest.v2+json'
 json_manifest_type_bis='application/vnd.docker.distribution.manifest.list.v2+json'
@@ -101,7 +105,10 @@ def progress_bar(ublob, nb_traits):
 ############## Check if args < 2
 
 if len(sys.argv) < 2 :
-	print('Usage:\n\tdocker_pull.py [registry/][repository/]image[:tag|@digest] [username] [password]\n')
+	print ('Usage:')
+	print ('\t docker_pull.py [registry/][repository/]image[:tag|@digest] ')
+	print ('\t docker_pull.py [registry/][repository/]image[:tag|@digest] output_path')
+	print ('\t docker_pull.py [registry/][repository/]image[:tag|@digest] username password output_path\n')
 	exit(1)
 
 ############## Get info from arg 
@@ -109,9 +116,17 @@ if len(sys.argv) < 2 :
 imgparts = sys.argv[1].split('/')
 
 ############## Setup username & password
+if len(sys.argv) == 3:
+	output_path = sys.argv[2]
+
 if len(sys.argv) == 4:
     username = sys.argv[2] 
     password = sys.argv[3] 
+
+if len(sys.argv) == 5:
+	username = sys.argv[2] 
+	password = sys.argv[3] 
+	output_path = sys.argv[4]
 
 ############## Get repository url + registry url for auth
 
@@ -183,7 +198,7 @@ if (resp.status_code != 200):
 layers = resp.json()['layers']
 
 # Create tmp folder that will hold the image
-imgdir = '/tmp/tmp_{}_{}'.format(img.replace('/', '.'), tag)
+imgdir = output_path  + '/tmp_{}'.format(sys.argv[1].replace('/', '.').replace(':','@'))
 
 if os.path.exists(imgdir):
     shutil.rmtree(imgdir)
@@ -305,7 +320,7 @@ file.write(json.dumps(content))
 file.close()
 
 # Create image tar and clean tmp folder
-docker_tar = repository.replace('/', '_') + '_' + img.replace('/', '_') + '.tar'
+docker_tar = output_path  + "/" + sys.argv[1].replace('/', '_').replace(':','@') + '.tar'
 sys.stdout.write("Creating archive...")
 sys.stdout.flush()
 tar = tarfile.open(docker_tar, "w")
