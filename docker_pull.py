@@ -116,6 +116,13 @@ if len(sys.argv) < 2 :
 imgparts = sys.argv[1].split('/')
 
 ############## Setup username & password
+
+if os.getenv("REPOSITORY_LOGIN"):
+    username = os.getenv("REPOSITORY_LOGIN")
+
+if os.getenv("REPOSITORY_PASSWORD"):
+    password = os.getenv("REPOSITORY_PASSWORD")
+
 if len(sys.argv) == 3:
 	output_path = sys.argv[2]
 
