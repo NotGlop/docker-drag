@@ -22,7 +22,7 @@ try:
     img,tag = imgparts[-1].split('@')
 except ValueError:
 	try:
-	    img,tag = imgparts[-1].split(':')
+		img,tag = imgparts[-1].split(':')
 	except ValueError:
 		img = imgparts[-1]
 # Docker client doesn't seem to consider the first element as a potential registry unless there is a '.' or ':'
