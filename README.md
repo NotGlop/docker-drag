@@ -13,9 +13,17 @@ It relies on the Docker registry [HTTPS API v2](https://docs.docker.com/registry
 
 `python docker_pull.py consul@sha256:6ba4bfe1449ad8ac5a76cb29b6c3ff54489477a23786afb61ae30fb3b1ac0ae9`
 
+After the image has been downloaded (`.tar` file), you can then import it and use it with the following docker commands:
+
+```
+docker load -i library_ubuntu.tar
+docker run -it ubuntu
+```
+
 <p align="center">
   <img src="https://user-images.githubusercontent.com/26483750/77766160-8da6f080-703f-11ea-953c-fd69978cb3bf.gif">
 </p>
+
 
 ## Limitations
 - Only support v2 manifests: some registries, like quay.io which only uses v1 manifests, may not work.
